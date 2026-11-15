@@ -1,29 +1,15 @@
 <?php
+require dirname(__DIR__) . '/config/app.php';
+exigir_login();
 
-require __DIR__ . '/../src/bootstrap.php';
+$novoTema = tema() === 'claro' ? 'escuro' : 'claro';
 
-require_login();
-
-$currentTheme = 'claro';
-
-if (isset($_COOKIE['tema'])) {
-    $currentTheme = $_COOKIE['tema'];
-}
-
-$theme = 'escuro';
-
-if ($currentTheme === 'escuro') {
-    $theme = 'claro';
-}
-
-$https = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
-
-setcookie('tema', $theme, [
-    'expires' => time() + 30 * 86400,
+setcookie('tema', $novoTema, [
+    'expires' => time() + (30 * 24 * 60 * 60),
     'path' => '/',
-    'secure' => $https,
     'httponly' => true,
     'samesite' => 'Lax',
+    'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
 ]);
 
-redirect('/');
+redirect('index.php');

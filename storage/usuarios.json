@@ -1,6 +1,8 @@
 [
     {
-        "usuario": "teste",
-        "senha_hash": "$2y$10$TZyHKihL6xMfEeCmayU4HuK\/825q9yYbu.6rvfSnFwqs89JXc\/7yq"
+        "id": "72a1ae7ec39c9086",
+        "nome": "teste",
+        "email": "teste@gmail.com",
+        "senha": "$2y$10$hYuEXtOnvhv1gM7YSnWeJ.jaqtZMi\/DbIkkjhRN\/sYgriBbUAU6x6"
     }
 ]

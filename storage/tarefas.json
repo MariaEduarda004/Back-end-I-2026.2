@@ -1,8 +1,11 @@
 [
     {
-        "id": "f62d82a30aff5766",
-        "usuario": "teste",
-        "titulo": "tarefinha",
-        "concluida": true
+        "id": "fc18f4ad7f89a25b",
+        "titulo": "Revisar atividades",
+        "materia": "backend i",
+        "prazo": "2026-11-16",
+        "prioridade": "alta",
+        "concluida": true,
+        "usuario_id": "72a1ae7ec39c9086"
     }
 ]

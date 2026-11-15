@@ -1,95 +1,90 @@
 <?php
-
-require __DIR__ . '/../src/bootstrap.php';
-
-if (current_user()) {
-    redirect('/');
-}
-
-$error = '';
+require dirname(__DIR__) . '/config/app.php';
+$erro = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    check_csrf();
-
-    $name = '';
-
-    if (isset($_POST['usuario'])) {
-        $name = (string) $_POST['usuario'];
-    }
-
-    $name = strtolower(trim($name));
-    $password = '';
-
-    if (isset($_POST['senha'])) {
-        $password = (string) $_POST['senha'];
-    }
-
-    if (!preg_match('/^[a-z0-9_]{3,24}$/', $name) || strlen($password) < 8) {
-        $error = 'Use nome de 3 a 24 caracteres (a-z, 0-9, _) e senha com ao menos 8 caracteres.';
+    if (!valid_csrf()) {
+        http_response_code(400);
+        $erro = 'Requisição inválida. Atualize a página e tente novamente.';
     } else {
-        $created = false;
+        $nome = trim((string) ($_POST['nome'] ?? ''));
+        $email = trim((string) ($_POST['email'] ?? ''));
+        $senha = (string) ($_POST['senha'] ?? '');
 
-        update_json('usuarios', function (array $users) use ($name, $password, &$created): array {
-            foreach ($users as $user) {
-                $existingName = '';
+        $nomeValido = mb_strlen($nome) >= 2 && mb_strlen($nome) <= 60;
+        $emailValido = filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+        $senhaValida = strlen($senha) >= 8;
 
-                if (isset($user['usuario'])) {
-                    $existingName = (string) $user['usuario'];
-                }
+        if (!$nomeValido || !$emailValido || !$senhaValida) {
+            $erro = 'Informe um nome com 2 a 60 caracteres, um e-mail válido e uma senha com pelo menos 8 caracteres.';
+        } else {
+            $usuarios = ler_json('usuarios.json');
+            $emailJaCadastrado = false;
 
-                if ($existingName === $name) {
-                    return $users;
+            foreach ($usuarios as $usuario) {
+                if (strcasecmp($usuario['email'], $email) === 0) {
+                    $emailJaCadastrado = true;
+                    break;
                 }
             }
 
-            $users[] = [
-                'usuario' => $name,
-                'senha_hash' => password_hash($password, PASSWORD_DEFAULT),
-            ];
-            $created = true;
+            if ($emailJaCadastrado) {
+                http_response_code(409);
+                $erro = 'Este e-mail já está cadastrado.';
+            } else {
+                $usuarios[] = [
+                    'id' => bin2hex(random_bytes(8)),
+                    'nome' => $nome,
+                    'email' => $email,
+                    'senha' => password_hash($senha, PASSWORD_DEFAULT),
+                ];
 
-            return $users;
-        });
-
-        if ($created) {
-            redirect('/login.php?cadastro=ok');
+                salvar_json('usuarios.json', $usuarios);
+                flash('Conta criada! Entre com seus dados.');
+                redirect('login.php');
+            }
         }
-
-        $error = 'Usuário já cadastrado.';
     }
 }
 
-page_start('Cadastro');
+$tituloPagina = 'Criar conta';
+require dirname(__DIR__) . '/views/header.php';
 ?>
+<div class="auth">
+    <section class="authintro">
+        <span class="eyebrow">COMECE AGORA</span>
+        <h1>Organize seus estudos com clareza.</h1>
+        <p>Cadastre suas matérias, acompanhe prazos e avance nas tarefas importantes.</p>
+    </section>
 
-<h2>Criar conta</h2>
+    <section class="panel">
+        <h2>Criar conta</h2>
+        <p class="muted">Já possui conta? <a href="login.php">Faça login</a>.</p>
 
-<?php if ($error): ?>
-    <p class="erro"><?= e($error) ?></p>
-<?php endif; ?>
+        <?php if ($erro !== ''): ?>
+            <div class="error"><?= e($erro) ?></div>
+        <?php endif; ?>
 
-<form method="post">
-    <input type="hidden" name="csrf" value="<?= e(csrf()) ?>">
+        <form method="post">
+            <input type="hidden" name="csrf" value="<?= e(csrf()) ?>">
 
-    <label>
-        Usuário
-        <input name="usuario" autocomplete="username" required>
-    </label>
+            <label>
+                Nome completo
+                <input name="nome" required maxlength="60">
+            </label>
 
-    <label>
-        Senha
-        <input
-            name="senha"
-            type="password"
-            autocomplete="new-password"
-            minlength="8"
-            required
-        >
-    </label>
+            <label>
+                E-mail
+                <input type="email" name="email" required>
+            </label>
 
-    <button type="submit">Cadastrar</button>
-</form>
+            <label>
+                Senha
+                <input type="password" name="senha" minlength="8" required>
+            </label>
 
-<p><a href="/login.php">Já tenho conta</a></p>
-
-<?php page_end(); ?>
+            <button class="btn full">Criar minha conta</button>
+        </form>
+    </section>
+</div>
+<?php require dirname(__DIR__) . '/views/footer.php'; ?>

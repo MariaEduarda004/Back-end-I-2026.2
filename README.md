@@ -1,63 +1,50 @@
 # Agenda de Estudos
 
-Aplicação didática em PHP puro para organizar tarefas de estudo. O projeto demonstra cadastro e autenticação de usuários, sessões, cookies, validação de formulários e persistência em arquivos JSON.
+Projeto didático em PHP puro para demonstrar os conteúdos de Desenvolvimento
+Back-end I. O usuário pode criar uma conta, entrar, cadastrar tarefas, marcar
+tarefas como concluídas e escolher um tema claro ou escuro.
 
 ## Requisitos
 
-- PHP 8.1 ou superior.
+- PHP 8.1 ou mais recente.
 - Extensão `mbstring` habilitada.
-- Permissão de escrita na pasta `storage/`.
-
-Não é necessário instalar ou iniciar MySQL/MariaDB: os dados são armazenados localmente em arquivos JSON.
+- Permissão para o PHP gravar arquivos na pasta `storage/`.
 
 ## Como executar
 
-Na raiz do projeto, abra um terminal e inicie o servidor embutido do PHP:
+### Servidor embutido do PHP
 
-```powershell
-php -v
-php -S 127.0.0.1:8000 -t public
-```
-
-Se o comando `php` não estiver no `PATH`, invoque o executável da instalação local. Por exemplo, com XAMPP:
-
-```powershell
-& "C:\xampp\php\php.exe" -S 127.0.0.1:8000 -t public
-```
-
-Com o servidor em execução, acesse <http://127.0.0.1:8000/cadastro.php>, crie uma conta e entre no sistema. Para encerrar o servidor, volte ao terminal e pressione `Ctrl+C`.
-
-O servidor embutido é destinado ao desenvolvimento local; não o use para publicar a aplicação na internet.
-
-## Funcionalidades
-
-- Cadastro com nome de usuário de 3 a 24 caracteres (`a-z`, `0-9` e `_`) e senha de pelo menos 8 caracteres.
-- Armazenamento de senhas com `password_hash()` e autenticação com `password_verify()`.
-- Criação e conclusão de tarefas, isoladas por usuário.
-- Alternância entre tema claro e escuro, salva em cookie por 30 dias.
-- Proteções didáticas: token CSRF em formulários, escape de conteúdo HTML e configuração segura de sessão.
-
-## Estrutura do projeto
+No terminal, a partir da pasta do projeto, execute:
 
 ```text
-public/       Páginas acessíveis pelo navegador e folha de estilos
-src/          Inicialização da sessão e funções compartilhadas
-storage/      Arquivos JSON de usuários e tarefas
+php -S localhost:8000 -t public
 ```
 
-Pontos de estudo:
+Abra `http://localhost:8000/cadastro.php` no navegador. Esse servidor serve
+para desenvolvimento local, não para publicar o sistema na internet.
 
-| Conceito | Onde observar |
-|---|---|
-| Cadastro e hash de senha | `public/cadastro.php` |
-| Autenticação e renovação da sessão | `public/login.php` |
-| Sessão e funções compartilhadas | `src/bootstrap.php` |
-| Tema e cookies | `public/tema.php` e `src/bootstrap.php` |
-| Validação e tarefas | `public/index.php` |
-| Encerramento da sessão | `public/logout.php` |
-| Persistência em JSON | `storage/*.json` e funções `read_json()` / `update_json()` em `src/bootstrap.php` |
+### XAMPP ou WampServer
 
-## Observações
+Copie a pasta do projeto para `htdocs` (XAMPP) ou `www` (WampServer), inicie o
+Apache e abra `http://localhost/NOME-DA-PASTA/public/cadastro.php`.
 
-- Os arquivos em `storage/` contêm dados locais do projeto. Não os compartilhe nem use dados ou senhas pessoais.
-- Este projeto tem finalidade educacional e não foi preparado para uso em produção ou exposição pública.
+## Fluxo para testar
+
+1. Crie uma conta com nome, e-mail e senha de pelo menos 8 caracteres.
+2. Entre com essa conta e cadastre uma tarefa com matéria, prazo e prioridade.
+3. Marque a tarefa como concluída e alterne o tema.
+4. Saia da conta e tente abrir o painel: o sistema deve pedir login.
+5. Tente cadastrar uma conta com um e-mail já usado ou uma tarefa sem título
+   para ver as mensagens de validação.
+
+## Organização dos arquivos
+
+- `config/app.php`: inicia a sessão e carrega os outros arquivos PHP.
+- `funcoes/`: funções de login, validação, exibição segura e acesso aos JSON.
+- `public/`: páginas que o navegador pode abrir e arquivos de estilo.
+- `views/`: cabeçalho e rodapé reutilizados pelas páginas.
+- `storage/`: arquivos JSON privados com usuários e tarefas.
+
+O painel fica em `public/index.php`. Ele exige uma sessão autenticada. As senhas
+são guardadas com `password_hash()` e verificadas com `password_verify()`.
+O tema é salvo em um cookie, e as tarefas e contas ficam nos arquivos JSON.

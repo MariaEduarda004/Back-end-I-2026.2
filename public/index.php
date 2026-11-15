@@ -1,155 +1,211 @@
 <?php
+require dirname(__DIR__) . '/config/app.php';
+exigir_login();
 
-require __DIR__ . '/../src/bootstrap.php';
-
-$user = require_login();
-$error = '';
+$usuarioAtual = usuario();
+$usuarioId = $usuarioAtual['id'];
+$erro = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    check_csrf();
+    if (!valid_csrf()) {
+        http_response_code(400);
+        $erro = 'Requisição inválida. Atualize a página e tente novamente.';
+    } else {
+        $acao = (string) ($_POST['acao'] ?? '');
 
-    $action = '';
+        if ($acao === 'criar') {
+            $titulo = trim((string) ($_POST['titulo'] ?? ''));
+            $materia = trim((string) ($_POST['materia'] ?? ''));
+            $prazo = (string) ($_POST['prazo'] ?? '');
+            $prioridade = (string) ($_POST['prioridade'] ?? '');
 
-    if (isset($_POST['acao'])) {
-        $action = (string) $_POST['acao'];
-    }
-
-    if ($action === 'criar') {
-        $title = '';
-
-        if (isset($_POST['titulo'])) {
-            $title = (string) $_POST['titulo'];
-        }
-
-        $title = trim($title);
-
-        if ($title === '' || mb_strlen($title) > 100) {
-            $error = 'Informe um título entre 1 e 100 caracteres.';
-        } else {
-            update_json('tarefas', function (array $tasks) use ($user, $title): array {
-                $tasks[] = [
-                    'id' => bin2hex(random_bytes(8)),
-                    'usuario' => $user,
-                    'titulo' => $title,
-                    'concluida' => false,
-                ];
-
-                return $tasks;
-            });
-
-            redirect('/');
-        }
-    } elseif ($action === 'concluir') {
-        $id = '';
-
-        if (isset($_POST['id'])) {
-            $id = (string) $_POST['id'];
-        }
-
-        update_json('tarefas', function (array $tasks) use ($user, $id): array {
-            foreach ($tasks as &$task) {
-                $taskUser = '';
-
-                if (isset($task['usuario'])) {
-                    $taskUser = (string) $task['usuario'];
-                }
-
-                $taskId = '';
-
-                if (isset($task['id'])) {
-                    $taskId = (string) $task['id'];
-                }
-
-                $isUserTask = $taskUser === $user;
-                $isSelectedTask = $taskId === $id;
-
-                if ($isUserTask && $isSelectedTask) {
-                    $task['concluida'] = true;
-                }
+            $dataValida = preg_match('/^\d{4}-\d{2}-\d{2}$/', $prazo) === 1;
+            if ($dataValida) {
+                [$ano, $mes, $dia] = array_map('intval', explode('-', $prazo));
+                $dataValida = checkdate($mes, $dia, $ano);
             }
 
-            unset($task);
+            $tituloValido = $titulo !== '' && mb_strlen($titulo) <= 90;
+            $materiaValida = $materia !== '' && mb_strlen($materia) <= 50;
+            $prioridadeValida = in_array($prioridade, ['baixa', 'media', 'alta'], true);
 
-            return $tasks;
-        });
+            if (!$tituloValido || !$materiaValida || !$dataValida || !$prioridadeValida) {
+                http_response_code(400);
+                $erro = 'Preencha todos os campos com valores válidos.';
+            } else {
+                $tarefas = ler_json('tarefas.json');
+                $tarefas[] = [
+                    'id' => bin2hex(random_bytes(8)),
+                    'titulo' => $titulo,
+                    'materia' => $materia,
+                    'prazo' => $prazo,
+                    'prioridade' => $prioridade,
+                    'concluida' => false,
+                    'usuario_id' => $usuarioId,
+                ];
 
-        redirect('/');
+                salvar_json('tarefas.json', $tarefas);
+                flash('Tarefa adicionada com sucesso.');
+                redirect('index.php');
+            }
+        } elseif ($acao === 'concluir') {
+            $id = (string) ($_POST['id'] ?? '');
+            $tarefas = ler_json('tarefas.json');
+            $tarefaEncontrada = false;
+
+            foreach ($tarefas as &$tarefa) {
+                if ($tarefa['id'] === $id && $tarefa['usuario_id'] === $usuarioId) {
+                    $tarefa['concluida'] = true;
+                    $tarefaEncontrada = true;
+                    break;
+                }
+            }
+            unset($tarefa);
+
+            if ($tarefaEncontrada) {
+                salvar_json('tarefas.json', $tarefas);
+                flash('Tarefa concluída.');
+                redirect('index.php');
+            }
+
+            http_response_code(404);
+            $erro = 'Tarefa não encontrada.';
+        } else {
+            http_response_code(400);
+            $erro = 'Ação inválida.';
+        }
     }
 }
 
-// Cada usuário visualiza somente as próprias tarefas.
-$allTasks = read_json('tarefas');
-$tasks = [];
-
-foreach ($allTasks as $task) {
-    $taskUser = '';
-
-    if (isset($task['usuario'])) {
-        $taskUser = (string) $task['usuario'];
-    }
-
-    if ($taskUser === $user) {
-        $tasks[] = $task;
+$tarefasDoUsuario = [];
+foreach (ler_json('tarefas.json') as $tarefa) {
+    if (($tarefa['usuario_id'] ?? null) === $usuarioId) {
+        $tarefasDoUsuario[] = $tarefa;
     }
 }
 
-page_start('Minhas tarefas');
+$totalTarefas = count($tarefasDoUsuario);
+$tarefasConcluidas = 0;
+
+foreach ($tarefasDoUsuario as $tarefa) {
+    if ($tarefa['concluida']) {
+        $tarefasConcluidas++;
+    }
+}
+
+$tarefasPendentes = $totalTarefas - $tarefasConcluidas;
+$tituloPagina = 'Meu painel';
+require dirname(__DIR__) . '/views/header.php';
 ?>
+<div class="heading">
+    <div>
+        <span class="eyebrow">SEU ESPAÇO DE ORGANIZAÇÃO</span>
+        <h1>Olá, <?= e($usuarioAtual['nome']) ?></h1>
+        <p>Seu próximo passo começa com uma tarefa.</p>
+    </div>
+    <a class="btn ghost" href="tema.php">Alternar tema</a>
+</div>
 
-<nav>
-    <span>Conectado como <strong><?= e($user) ?></strong></span>
+<div class="stats">
+    <div class="stat">
+        <span>Tarefas totais</span>
+        <strong><?= $totalTarefas ?></strong>
+        <small>Itens cadastrados</small>
+    </div>
+    <div class="stat">
+        <span>Em andamento</span>
+        <strong><?= $tarefasPendentes ?></strong>
+        <small>Próximos desafios</small>
+    </div>
+    <div class="stat">
+        <span>Concluídas</span>
+        <strong><?= $tarefasConcluidas ?></strong>
+        <small>Seu progresso</small>
+    </div>
+</div>
 
-    <a href="/tema.php">Alternar tema</a>
+<div class="columns">
+    <section class="panel">
+        <span class="eyebrow">PLANEJAR</span>
+        <h2>Nova tarefa</h2>
+        <p class="muted">Adicione uma atividade à sua agenda.</p>
 
-    <form action="/logout.php" method="post">
-        <input type="hidden" name="csrf" value="<?= e(csrf()) ?>">
-        <button type="submit">Sair</button>
-    </form>
-</nav>
+        <?php if ($erro !== ''): ?>
+            <div class="error"><?= e($erro) ?></div>
+        <?php endif; ?>
 
-<h2>Minhas tarefas</h2>
+        <form method="post">
+            <input type="hidden" name="csrf" value="<?= e(csrf()) ?>">
+            <input type="hidden" name="acao" value="criar">
 
-<?php if ($error): ?>
-    <p class="erro"><?= e($error) ?></p>
-<?php endif; ?>
+            <label>
+                Título da tarefa
+                <input name="titulo" maxlength="90" required placeholder="Ex.: Revisar PHP">
+            </label>
 
-<form method="post">
-    <input type="hidden" name="csrf" value="<?= e(csrf()) ?>">
-    <input type="hidden" name="acao" value="criar">
+            <label>
+                Matéria
+                <input name="materia" maxlength="50" required placeholder="Ex.: Back-end I">
+            </label>
 
-    <label>
-        Título da tarefa
-        <input name="titulo" maxlength="100" required placeholder="Ex.: revisar cookies">
-    </label>
+            <label>
+                Prazo
+                <input name="prazo" type="date" required>
+            </label>
 
-    <button type="submit">Adicionar</button>
-</form>
+            <label>
+                Prioridade
+                <select name="prioridade">
+                    <option value="media">Média</option>
+                    <option value="alta">Alta</option>
+                    <option value="baixa">Baixa</option>
+                </select>
+            </label>
 
-<?php if (!$tasks): ?>
-    <p>Nenhuma tarefa cadastrada.</p>
-<?php endif; ?>
+            <button class="btn full">Adicionar tarefa</button>
+        </form>
+    </section>
 
-<ul>
-    <?php foreach ($tasks as $task): ?>
-        <?php $isCompleted = !empty($task['concluida']); ?>
-        <li>
-            <span>
-                <?= e((string) $task['titulo']) ?>
-                <?php if ($isCompleted): ?>
-                    ✓
+    <section class="panel listpanel">
+        <div class="listheader">
+            <div>
+                <span class="eyebrow">ACOMPANHAR</span>
+                <h2>Minhas tarefas</h2>
+            </div>
+            <span class="count"><?= $totalTarefas ?> registros</span>
+        </div>
+
+        <?php if (count($tarefasDoUsuario) === 0): ?>
+            <div class="empty">
+                <h3>Nenhuma tarefa ainda</h3>
+                <p>Comece cadastrando sua primeira atividade.</p>
+            </div>
+        <?php endif; ?>
+
+        <?php foreach (array_reverse($tarefasDoUsuario) as $tarefa): ?>
+            <article class="task">
+                <div class="taskbody">
+                    <strong><?= e($tarefa['titulo']) ?></strong>
+                    <div class="taskmeta">
+                        <?= e($tarefa['materia']) ?> · <?= e($tarefa['prazo']) ?>
+                        <span class="pill <?= e($tarefa['prioridade']) ?>">
+                            <?= e($tarefa['prioridade']) ?>
+                        </span>
+                    </div>
+                </div>
+
+                <?php if (!$tarefa['concluida']): ?>
+                    <form method="post">
+                        <input type="hidden" name="csrf" value="<?= e(csrf()) ?>">
+                        <input type="hidden" name="acao" value="concluir">
+                        <input type="hidden" name="id" value="<?= e($tarefa['id']) ?>">
+                        <button class="smallbtn">Concluir</button>
+                    </form>
+                <?php else: ?>
+                    <span class="complete">Feita</span>
                 <?php endif; ?>
-            </span>
-
-            <?php if (!$isCompleted): ?>
-                <form method="post">
-                    <input type="hidden" name="csrf" value="<?= e(csrf()) ?>">
-                    <input type="hidden" name="acao" value="concluir">
-                    <input type="hidden" name="id" value="<?= e((string) $task['id']) ?>">
-                    <button type="submit">Concluir</button>
-                </form>
-            <?php endif; ?>
-        </li>
-    <?php endforeach; ?>
-</ul>
-
-<?php page_end(); ?>
+            </article>
+        <?php endforeach; ?>
+    </section>
+</div>
+<?php require dirname(__DIR__) . '/views/footer.php'; ?>
